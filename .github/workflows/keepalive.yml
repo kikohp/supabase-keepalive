@@ -1,0 +1,17 @@
+name: Keep Supabase Active
+
+on:
+  schedule:
+    # Runs every day at 8:00 AM UTC (10:00 AM South Africa time)
+    - cron: '0 8 * * *'
+  workflow_dispatch:  # Allows you to manually trigger it from GitHub
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Cloudflare Worker (which pings Supabase)
+        run: |
+          echo "Pinging MyAquaponics API to keep Supabase active..."
+          curl -s https://myaquaponics-api.henri-971.workers.dev/chat-history
+          echo "Done! Supabase will stay active."
