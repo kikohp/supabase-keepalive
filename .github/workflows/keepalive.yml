@@ -1,17 +1,34 @@
-name: Keep Supabase Active
+name: Supabase Keepalive with DB Query
 
 on:
   schedule:
-    # Runs every day at 8:00 AM UTC (10:00 AM South Africa time)
-    - cron: '0 8 * * *'
-  workflow_dispatch:  # Allows you to manually trigger it from GitHub
+    - cron: '0 6 * * *'  # Runs daily at 6 AM UTC (8 AM South Africa time)
+  workflow_dispatch:  # Allows manual trigger
 
 jobs:
-  ping-supabase:
+  keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Cloudflare Worker (which pings Supabase)
+      - name: Ping Supabase with Database Query
         run: |
-          echo "Pinging MyAquaponics API to keep Supabase active..."
-          curl -s https://myaquaponics-api.henri-971.workers.dev/chat-history
-          echo "Done! Supabase will stay active."
+          echo "Pinging Supabase database to prevent auto-pause..."
+          
+          # Make an actual database query (not just API ping)
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X GET \
+            "https://yuzyplmvvbkugdnrrbof.supabase.co/rest/v1/config?id=eq.1&select=id" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+          
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Database query successful! Supabase will stay active."
+          else
+            echo "❌ Query failed with status $HTTP_CODE"
+            exit 1
+          fi
