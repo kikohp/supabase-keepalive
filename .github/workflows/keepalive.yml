@@ -1,34 +1,47 @@
-name: Supabase Keepalive with DB Query
+name: Supabase Keepalive Debug
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron: '0 6 * * *'  # Runs daily at 6 AM UTC (8 AM South Africa time)
-  workflow_dispatch:  # Allows manual trigger
+    - cron: '0 6 * * *'
 
 jobs:
   keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase with Database Query
+      - name: Debug and Ping Supabase
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          echo "Pinging Supabase database to prevent auto-pause..."
+          echo "=== Starting Supabase Keepalive ==="
           
-          # Make an actual database query (not just API ping)
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -X GET \
-            "https://yuzyplmvvbkugdnrrbof.supabase.co/rest/v1/config?id=eq.1&select=id" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          # Check if secret exists
+          if [ -z "$SUPABASE_KEY" ]; then
+            echo "❌ ERROR: SUPABASE_ANON_KEY secret is not set!"
+            exit 1
+          fi
           
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n-1)
+          echo "✅ Secret is set (length: ${#SUPABASE_KEY} characters)"
+          
+          # First, check if Supabase is responding at all
+          echo ""
+          echo "Testing Supabase connection..."
+          
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            "https://yuzyplmvvbkugdnrrbof.supabase.co/rest/v1/config?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_CODE:")
           
           echo "HTTP Status: $HTTP_CODE"
-          echo "Response: $BODY"
+          echo "Response Body: $BODY"
           
           if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Database query successful! Supabase will stay active."
+            echo "✅ SUCCESS! Database query worked!"
+            exit 0
           else
-            echo "❌ Query failed with status $HTTP_CODE"
+            echo "❌ FAILED with status $HTTP_CODE"
             exit 1
           fi
