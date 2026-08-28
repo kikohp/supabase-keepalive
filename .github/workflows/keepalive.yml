@@ -5,43 +5,55 @@ on:
   schedule:
     - cron: '0 6 * * *'
 
+permissions:
+  contents: write
+
 jobs:
   keepalive:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Debug and Ping Supabase
         env:
           SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           echo "=== Starting Supabase Keepalive ==="
-          
-          # Check if secret exists
+
           if [ -z "$SUPABASE_KEY" ]; then
             echo "❌ ERROR: SUPABASE_ANON_KEY secret is not set!"
             exit 1
           fi
-          
+
           echo "✅ Secret is set (length: ${#SUPABASE_KEY} characters)"
-          
-          # First, check if Supabase is responding at all
           echo ""
           echo "Testing Supabase connection..."
-          
+
           RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
             "https://yuzyplmvvbkugdnrrbof.supabase.co/rest/v1/config?select=id&limit=1" \
             -H "apikey: ${SUPABASE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_KEY}")
-          
+
           HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d':' -f2)
           BODY=$(echo "$RESPONSE" | grep -v "HTTP_CODE:")
-          
+
           echo "HTTP Status: $HTTP_CODE"
           echo "Response Body: $BODY"
-          
+
           if [ "$HTTP_CODE" = "200" ]; then
             echo "✅ SUCCESS! Database query worked!"
-            exit 0
           else
             echo "❌ FAILED with status $HTTP_CODE"
             exit 1
           fi
+
+      - name: Keep repo active (prevents GitHub auto-disabling this workflow)
+        run: |
+          mkdir -p .github
+          date -u +"Last keepalive run: %Y-%m-%d %H:%M UTC" > .github/last-keepalive.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/last-keepalive.txt
+          git diff --cached --quiet || git commit -m "chore: keepalive activity ping [skip ci]"
+          git push
